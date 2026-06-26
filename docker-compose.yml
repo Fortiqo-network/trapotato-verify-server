@@ -1,0 +1,21 @@
+# Trapotato Verify Server — Docker Compose
+#
+# The PostgreSQL database is EXTERNAL (provided via DATABASE_URL in .env),
+# so this compose file only runs the Next.js app. Reverse proxy / SSL is
+# handled separately by Nginx on the host (see docs/deployment.md).
+
+services:
+  app:
+    build: .
+    image: trapotato-verify-server
+    container_name: trapotato-verify
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    # One-off DB init:
+    #   docker compose run --rm app npm run db:init

@@ -1,0 +1,129 @@
+:root {
+  --bg: #0b0d10;
+  --panel: #14171c;
+  --panel-2: #1a1e25;
+  --border: #262b33;
+  --text: #e7eaee;
+  --muted: #9aa3af;
+  --brand: #f59e0b;
+  --brand-2: #fbbf24;
+  --green: #22c55e;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --amber: #f59e0b;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--brand-2); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+h1, h2, h3 { margin: 0 0 0.25em; font-weight: 650; }
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.1rem; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+/* ── Top nav ─────────────────────────────────────────────── */
+.nav {
+  display: flex; align-items: center; gap: 20px;
+  padding: 14px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+.nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; }
+.nav .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 12px var(--brand); }
+.nav .links { display: flex; gap: 6px; }
+.nav .links a { color: var(--muted); padding: 6px 12px; border-radius: 8px; }
+.nav .links a:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
+.nav .links a.active { color: var(--text); background: var(--panel-2); }
+.nav .spacer { flex: 1; }
+
+/* ── Cards / panels ──────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.grid { display: grid; gap: 16px; }
+.grid.stats { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+.stat .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat .value { font-size: 2rem; font-weight: 700; margin-top: 6px; }
+.stat .value.green { color: var(--green); }
+.stat .value.red { color: var(--red); }
+.stat .value.amber { color: var(--amber); }
+.stat .value.blue { color: var(--blue); }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--panel-2); color: var(--text); cursor: pointer;
+  font-size: 0.85rem; font-weight: 550; transition: all .15s;
+}
+.btn:hover { border-color: #3a4150; background: #20252e; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #1a1205; }
+.btn.primary:hover { background: var(--brand-2); }
+.btn.danger { color: #fecaca; border-color: #5b2020; background: #2a1414; }
+.btn.danger:hover { background: #3a1a1a; }
+.btn.sm { padding: 5px 10px; font-size: 0.78rem; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Forms ───────────────────────────────────────────────── */
+label { display: block; color: var(--muted); font-size: 0.8rem; margin: 12px 0 4px; }
+input, select, textarea {
+  width: 100%; padding: 9px 11px; border-radius: 9px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  font-size: 0.9rem; font-family: inherit;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.row > * { flex: 1; min-width: 160px; }
+
+/* ── Tables ──────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; background: var(--panel); position: sticky; top: 0; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--panel-2); }
+code.key { font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-size: 0.82rem; color: var(--brand-2); }
+
+/* ── Badges ──────────────────────────────────────────────── */
+.badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; text-transform: capitalize; }
+.badge.active { background: rgba(34,197,94,.15); color: #86efac; }
+.badge.disabled { background: rgba(156,163,175,.15); color: #cbd5e1; }
+.badge.expired { background: rgba(245,158,11,.15); color: #fcd34d; }
+.badge.banned { background: rgba(239,68,68,.15); color: #fca5a5; }
+.badge.online { background: rgba(59,130,246,.15); color: #93c5fd; }
+
+.muted { color: var(--muted); }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+.toolbar .search { max-width: 320px; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── Login ───────────────────────────────────────────────── */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login-card { width: 100%; max-width: 380px; }
+.login-card .brand { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 18px; font-size: 1.3rem; font-weight: 700; }
+.error { color: #fca5a5; background: #2a1414; border: 1px solid #5b2020; padding: 9px 12px; border-radius: 9px; margin-top: 12px; font-size: 0.85rem; }
+
+/* ── Modal ───────────────────────────────────────────────── */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+.modal { width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; }
+.section-title { margin: 24px 0 12px; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
