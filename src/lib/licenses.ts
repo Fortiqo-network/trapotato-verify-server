@@ -14,7 +14,8 @@ import type {
   VerifyResult,
 } from './types';
 
-const VALID_PLANS: Plan[] = ['none', 'monthly', 'quarterly', 'annual', 'lifetime'];
+const VALID_PLANS: Plan[] = ['none', 'trial', 'monthly', 'quarterly', 'annual', 'lifetime'];
+const TRIAL_MS = 10 * 60 * 1000; // 10-minute free trial granted on registration
 export function isPlan(v: unknown): v is Plan {
   return typeof v === 'string' && VALID_PLANS.includes(v as Plan);
 }
@@ -133,14 +134,18 @@ export async function registerUser(input: {
   whatsapp: string;
   requestedPlan: Plan;
 }): Promise<License> {
+  // Grant an immediate 10-minute free trial so the user can try the app right away.
+  // After it expires they pay the team to top up the key with a real plan.
+  const trialExpiry = new Date(Date.now() + TRIAL_MS).toISOString();
   for (let attempt = 0; attempt < 5; attempt++) {
     const key = generateProductKey();
     if (await getLicenseByKey(key)) continue;
     const row = await queryOne<License>(
-      `INSERT INTO licenses (product_key, customer_name, email, whatsapp, status, plan, requested_plan)
-       VALUES ($1, $2, $3, $4, 'pending', 'none', $5)
+      `INSERT INTO licenses
+         (product_key, customer_name, email, whatsapp, status, plan, requested_plan, activation_date, expiry_date)
+       VALUES ($1, $2, $3, $4, 'active', 'trial', $5, now(), $6)
        RETURNING *`,
-      [key, input.customerName ?? '', input.email ?? '', input.whatsapp ?? '', input.requestedPlan ?? 'none'],
+      [key, input.customerName ?? '', input.email ?? '', input.whatsapp ?? '', input.requestedPlan ?? 'none', trialExpiry],
     );
     if (row) return row;
   }
@@ -302,6 +307,8 @@ export async function verifyLicense(input: {
   os?: string;
   deviceName?: string;
   ip: string;
+  /** true = the user just entered the key (may take over the seat); false = background re-check. */
+  activating?: boolean;
 }): Promise<VerifyResult> {
   const productKey = (input.productKey ?? '').trim();
   const machineId = (input.machineId ?? '').trim();
@@ -342,21 +349,27 @@ export async function verifyLicense(input: {
       expired: 'Your subscription has expired. Please renew to continue.',
       banned: 'Your product key has been banned. Please contact the administrator.',
     };
-    const reason = reasons[status] ?? 'License is not active.';
+    let reason = reasons[status] ?? 'License is not active.';
+    if (status === 'expired' && lic.plan === 'trial') {
+      reason = 'Your 10-minute free trial has ended. Contact the team to pay and top up your key to keep using Trapotato.';
+    }
     await touch();
     await logVerification(lic.id, productKey, machineId, ip, false, reason);
     return { valid: false, status, reason, plan: lic.plan, expiryDate: lic.expiry_date };
   }
 
-  // ── Device rules ───────────────────────────────────────────
-  // Lifetime: locked to ONE permanently-registered device.
-  // All other plans: no device cap.
+  // ── Device rules: ONE active device at a time (floating) ────
+  // The product key works on a single machine at a time. Entering the key on a
+  // new device takes over the seat and signs the previous device out. Background
+  // re-checks never silently re-register, so a signed-out/reset device must
+  // re-enter the key.
   const machine = await queryOne<Machine>(
     `SELECT * FROM machines WHERE license_id = $1 AND machine_id = $2`,
     [lic.id, machineId],
   );
 
   if (machine) {
+    // This is the currently-registered device.
     await query(
       `UPDATE machines SET last_seen = now(), ip_address = $2,
               os = COALESCE(NULLIF($3, ''), os),
@@ -364,19 +377,16 @@ export async function verifyLicense(input: {
        WHERE id = $1`,
       [machine.id, ip, input.os ?? '', input.deviceName ?? ''],
     );
+  } else if (!input.activating) {
+    // Background re-check from a device that is no longer the active seat
+    // (used elsewhere, or the admin reset the device) → sign out, require re-entry.
+    await touch();
+    const reason = 'You have been signed out because this product key is now active on another device (or was reset). Enter your product key to use it here.';
+    await logVerification(lic.id, productKey, machineId, ip, false, reason);
+    return { valid: false, status: 'invalid', reason, requiresReactivation: true, plan: lic.plan, expiryDate: lic.expiry_date };
   } else {
-    if (lic.plan === 'lifetime') {
-      const countRow = await queryOne<{ count: string }>(
-        `SELECT COUNT(*)::int AS count FROM machines WHERE license_id = $1`,
-        [lic.id],
-      );
-      if (Number(countRow?.count ?? 0) >= 1) {
-        await touch();
-        const reason = 'This lifetime license is permanently registered to a different device. Contact the administrator to reset the registered device.';
-        await logVerification(lic.id, productKey, machineId, ip, false, reason);
-        return { valid: false, status: 'active', reason, plan: lic.plan, expiryDate: lic.expiry_date };
-      }
-    }
+    // Explicit activation: take over the single seat — sign out any other device.
+    await query(`DELETE FROM machines WHERE license_id = $1`, [lic.id]);
     await query(
       `INSERT INTO machines (license_id, machine_id, os, device_name, ip_address)
        VALUES ($1, $2, $3, $4, $5)`,

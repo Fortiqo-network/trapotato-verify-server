@@ -47,9 +47,11 @@ export async function POST(req: Request) {
       {
         ok: true,
         productKey: lic.product_key,
-        status: lic.status, // 'pending'
+        status: lic.status, // 'active' (trial)
+        plan: lic.plan, // 'trial'
+        expiryDate: lic.expiry_date,
         requestedPlan: lic.requested_plan,
-        message: 'Your product key has been created but will remain inactive until your payment is verified by the admin.',
+        message: 'Your product key is ready with a 10-minute free trial. After it ends, contact the team to pay and top up your key.',
       },
       { status: 201, headers: CORS_HEADERS },
     );

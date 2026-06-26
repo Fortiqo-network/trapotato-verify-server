@@ -1,7 +1,7 @@
 // Shared domain types for the licensing system.
 
 export type LicenseStatus = 'pending' | 'active' | 'disabled' | 'expired' | 'banned';
-export type Plan = 'none' | 'monthly' | 'quarterly' | 'annual' | 'lifetime';
+export type Plan = 'none' | 'trial' | 'monthly' | 'quarterly' | 'annual' | 'lifetime';
 
 export interface License {
   id: string;
@@ -66,8 +66,10 @@ export interface VerifyResult {
   reason: string;
   plan?: Plan;
   expiryDate?: string | null;
-  /** Days left for time-based plans; null = unlimited (lifetime); undefined = n/a. */
+  /** Days left for time-based plans; null = unlimited; undefined = n/a. */
   remainingDays?: number | null;
   customerName?: string;
   recheckSeconds?: number;
+  /** Set when this device was signed out (e.g. used elsewhere or admin reset) and must re-enter the key. */
+  requiresReactivation?: boolean;
 }

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS licenses (
     status                  TEXT NOT NULL DEFAULT 'pending'
                               CHECK (status IN ('pending', 'active', 'disabled', 'expired', 'banned')),
     plan                    TEXT NOT NULL DEFAULT 'none'
-                              CHECK (plan IN ('none', 'monthly', 'quarterly', 'annual', 'lifetime')),
+                              CHECK (plan IN ('none', 'trial', 'monthly', 'quarterly', 'annual', 'lifetime')),
     requested_plan          TEXT NOT NULL DEFAULT 'none'
                               CHECK (requested_plan IN ('none', 'monthly', 'quarterly', 'annual', 'lifetime')),
     max_activations         INTEGER NOT NULL DEFAULT 1 CHECK (max_activations >= 1),
@@ -96,7 +96,7 @@ ALTER TABLE licenses ADD  CONSTRAINT licenses_status_check
 
 ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_plan_check;
 ALTER TABLE licenses ADD  CONSTRAINT licenses_plan_check
-    CHECK (plan IN ('none', 'monthly', 'quarterly', 'annual', 'lifetime'));
+    CHECK (plan IN ('none', 'trial', 'monthly', 'quarterly', 'annual', 'lifetime'));
 
 ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_requested_plan_check;
 ALTER TABLE licenses ADD  CONSTRAINT licenses_requested_plan_check

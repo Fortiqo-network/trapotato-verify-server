@@ -96,7 +96,8 @@ export function PlanPickerModal({
   onSelect: (plan: Plan) => Promise<void> | void;
   onClose: () => void;
 }) {
-  const [plan, setPlan] = useState<Plan>(current && current !== 'none' ? current : 'monthly');
+  const offered = PLAN_LIST.map((p) => p.key) as string[];
+  const [plan, setPlan] = useState<Plan>(current && offered.includes(current) ? current : 'monthly');
   const [busy, setBusy] = useState(false);
   return (
     <div className="modal-backdrop" onClick={onClose}>

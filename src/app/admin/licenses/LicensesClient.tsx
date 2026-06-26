@@ -117,7 +117,7 @@ export default function LicensesClient() {
                   {l.status === 'active' ? planLabel(l.plan)
                     : <span className="muted">{l.requested_plan !== 'none' ? `wants ${planLabel(l.requested_plan)}` : '—'}</span>}
                 </td>
-                <td>{l.machine_count}{l.plan === 'lifetime' ? ' / 1' : ''}</td>
+                <td>{l.machine_count} / 1</td>
                 <td>{l.plan === 'lifetime' ? 'Never' : fmt(l.expiry_date)}</td>
                 <td>
                   <div className="actions">
@@ -130,7 +130,7 @@ export default function LicensesClient() {
                       : (l.status === 'disabled' || l.status === 'banned')
                         ? <button className="btn sm" onClick={() => action(l.id, { action: 'enable' })}>Enable</button>
                         : null}
-                    {l.plan === 'lifetime' && <button className="btn sm" onClick={() => askReset(l)}>Reset device</button>}
+                    {l.machine_count > 0 && <button className="btn sm" onClick={() => askReset(l)}>Reset device</button>}
                     <button className="btn sm danger" onClick={() => askDelete(l)}>Delete</button>
                   </div>
                 </td>
@@ -164,7 +164,10 @@ export default function LicensesClient() {
 }
 
 function PlanModal({ row, mode, onClose, onDone }: { row: Row; mode: 'activate' | 'change'; onClose: () => void; onDone: () => void }) {
-  const [plan, setPlan] = useState(row.requested_plan !== 'none' ? row.requested_plan : row.plan !== 'none' ? row.plan : 'monthly');
+  const offered = PLAN_LIST.map((p) => p.key) as string[];
+  const [plan, setPlan] = useState(
+    offered.includes(row.requested_plan) ? row.requested_plan : offered.includes(row.plan) ? row.plan : 'monthly',
+  );
   const [busy, setBusy] = useState(false);
 
   async function go() {

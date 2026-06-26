@@ -44,6 +44,7 @@ export async function POST(req: Request) {
       machineId: String(body.machineId ?? ''),
       os: body.os ? String(body.os) : undefined,
       deviceName: body.deviceName ? String(body.deviceName) : undefined,
+      activating: body.activating === true,
       ip: clientIp(req),
     });
 

@@ -46,9 +46,9 @@ export default async function LicenseDetailPage({ params }: { params: Promise<{ 
           <Info label="WhatsApp" value={license.whatsapp || '—'} />
           <Info label="Active Plan" value={planLabel(license.plan)} />
           <Info label="Requested Plan" value={planLabel(license.requested_plan)} />
-          <Info label="Registered Devices" value={license.plan === 'lifetime' ? `${machines.length} / 1 (lifetime lock)` : `${machines.length}`} />
+          <Info label="Active Device" value={`${machines.length} / 1 (one device at a time)`} />
           <Info label="Activation Date" value={fmt(license.activation_date)} />
-          <Info label="Expiry Date" value={license.plan === 'lifetime' ? 'Never (lifetime)' : fmt(license.expiry_date)} />
+          <Info label="Expiry Date" value={license.plan === 'lifetime' ? 'Never (legacy)' : fmt(license.expiry_date)} />
           <Info label="Last Verification" value={fmt(license.last_verification_time)} />
           <Info label="Last IP" value={license.last_ip || '—'} />
           <Info label="Created" value={fmt(license.created_at)} />
