@@ -38,5 +38,5 @@ export function planLabel(plan: Plan): string {
   return PLANS[plan].label;
 }
 
-export const SUPPORT_EMAIL = 'balraj.fortiqo@gmail.com';
+export const SUPPORT_EMAIL = 'trapotato.fortiqo@gmail.com';
 export const SUPPORT_WHATSAPP = '+91 7000695135';
