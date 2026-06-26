@@ -2,15 +2,20 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { LicenseStatus } from '@/lib/types';
+import type { LicenseStatus, Plan } from '@/lib/types';
+import { PLAN_LIST } from '@/lib/plans';
 
 export default function DetailActions({
   id,
   status,
+  plan,
+  isLifetime,
   productKey,
 }: {
   id: string;
   status: LicenseStatus;
+  plan: Plan;
+  isLifetime: boolean;
   productKey: string;
 }) {
   const router = useRouter();
@@ -26,6 +31,16 @@ export default function DetailActions({
     });
     setBusy(false);
     router.refresh();
+  }
+
+  function pickPlan(mode: 'activate' | 'change-plan') {
+    const opts = PLAN_LIST.map((p, i) => `${i + 1}) ${p.label} — ${p.price}`).join('\n');
+    const choice = prompt(`Select a plan:\n${opts}\n\nEnter 1-4:`, '1');
+    if (!choice) return;
+    const idx = Number(choice) - 1;
+    const p = PLAN_LIST[idx];
+    if (!p) return alert('Invalid choice.');
+    patch({ action: mode, plan: p.key });
   }
 
   async function extend() {
@@ -52,11 +67,19 @@ export default function DetailActions({
 
   return (
     <div className="actions" style={{ marginTop: 14, opacity: busy ? 0.5 : 1 }}>
+      {(status === 'pending' || status === 'expired') && (
+        <button className="btn primary" onClick={() => pickPlan('activate')}>Activate (pick plan)</button>
+      )}
+      {status === 'active' && <button className="btn" onClick={() => pickPlan('change-plan')}>Change plan</button>}
       {status === 'active'
         ? <button className="btn" onClick={() => patch({ action: 'disable' })}>Disable</button>
-        : <button className="btn" onClick={() => patch({ action: 'enable' })}>Enable</button>}
-      <button className="btn" onClick={extend}>Extend Subscription</button>
-      <button className="btn" onClick={() => patch({ action: 'reset-machines' }, `Reset machine activations for ${productKey}? The user can then activate on a new device.`)}>Reset Machines</button>
+        : (status === 'disabled' || status === 'banned')
+          ? <button className="btn" onClick={() => patch({ action: 'enable' })}>Enable</button>
+          : null}
+      {!isLifetime && <button className="btn" onClick={extend}>Extend</button>}
+      <button className="btn" onClick={() => patch({ action: 'reset-machines' }, isLifetime ? `Reset the registered device for ${productKey}? They can then activate on a new machine.` : `Reset registered devices for ${productKey}?`)}>
+        {isLifetime ? 'Reset device' : 'Reset devices'}
+      </button>
       <button className="btn danger" onClick={ban}>Ban</button>
       <button className="btn danger" onClick={remove}>Delete</button>
     </div>

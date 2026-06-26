@@ -3,14 +3,21 @@
 import { query, queryOne } from './db';
 import { config } from './config';
 import { generateProductKey } from './keygen';
+import { PLAN_DAYS } from './plans';
 import type {
   License,
   LicenseStatus,
   Machine,
+  Plan,
   Stats,
   VerificationLog,
   VerifyResult,
 } from './types';
+
+const VALID_PLANS: Plan[] = ['none', 'monthly', 'quarterly', 'annual', 'lifetime'];
+export function isPlan(v: unknown): v is Plan {
+  return typeof v === 'string' && VALID_PLANS.includes(v as Plan);
+}
 
 // ── Reads ─────────────────────────────────────────────────────
 
@@ -26,7 +33,7 @@ export async function listLicenses(opts: {
   if (opts.search) {
     params.push(`%${opts.search}%`);
     const p = `$${params.length}`;
-    where.push(`(l.product_key ILIKE ${p} OR l.customer_name ILIKE ${p} OR l.email ILIKE ${p})`);
+    where.push(`(l.product_key ILIKE ${p} OR l.customer_name ILIKE ${p} OR l.email ILIKE ${p} OR l.whatsapp ILIKE ${p})`);
   }
   if (opts.status && opts.status !== 'all') {
     params.push(opts.status);
@@ -80,10 +87,11 @@ export function getLogs(licenseId: string, limit = 100): Promise<VerificationLog
 
 export async function getStats(): Promise<Stats> {
   const row = await queryOne<{
-    total: string; active: string; disabled: string; expired: string; banned: string;
+    total: string; pending: string; active: string; disabled: string; expired: string; banned: string;
   }>(
     `SELECT
        COUNT(*)::int AS total,
+       COUNT(*) FILTER (WHERE status = 'pending')::int  AS pending,
        COUNT(*) FILTER (WHERE status = 'active')::int   AS active,
        COUNT(*) FILTER (WHERE status = 'disabled')::int AS disabled,
        COUNT(*) FILTER (WHERE status = 'expired')::int  AS expired,
@@ -97,6 +105,7 @@ export async function getStats(): Promise<Stats> {
   );
   return {
     total: Number(row?.total ?? 0),
+    pending: Number(row?.pending ?? 0),
     active: Number(row?.active ?? 0),
     disabled: Number(row?.disabled ?? 0),
     expired: Number(row?.expired ?? 0),
@@ -105,36 +114,53 @@ export async function getStats(): Promise<Stats> {
   };
 }
 
+// ── Registration (public self-service) ────────────────────────
+
+/**
+ * Self-service registration. Creates a PENDING license (inactive) with the
+ * user's details and the plan they want to buy, generating a unique key.
+ * The key stays inactive until an admin verifies payment and activates it.
+ */
+export async function registerUser(input: {
+  customerName: string;
+  email: string;
+  whatsapp: string;
+  requestedPlan: Plan;
+}): Promise<License> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const key = generateProductKey();
+    if (await getLicenseByKey(key)) continue;
+    const row = await queryOne<License>(
+      `INSERT INTO licenses (product_key, customer_name, email, whatsapp, status, plan, requested_plan)
+       VALUES ($1, $2, $3, $4, 'pending', 'none', $5)
+       RETURNING *`,
+      [key, input.customerName ?? '', input.email ?? '', input.whatsapp ?? '', input.requestedPlan ?? 'none'],
+    );
+    if (row) return row;
+  }
+  throw new Error('Failed to generate a unique product key');
+}
+
 // ── Writes (admin) ────────────────────────────────────────────
 
 export async function createLicense(input: {
   customerName: string;
   email: string;
-  maxActivations?: number;
-  expiryDate?: string | null;
-  notes?: string;
+  whatsapp?: string;
+  requestedPlan?: Plan;
   productKey?: string;
 }): Promise<License> {
-  // Retry a few times in the (astronomically unlikely) event of a key collision.
   for (let attempt = 0; attempt < 5; attempt++) {
     const key = input.productKey?.trim() || generateProductKey();
-    const existing = await getLicenseByKey(key);
-    if (existing) {
+    if (await getLicenseByKey(key)) {
       if (input.productKey) throw new Error('Product key already exists');
       continue;
     }
     const row = await queryOne<License>(
-      `INSERT INTO licenses (product_key, customer_name, email, max_activations, expiry_date, notes)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO licenses (product_key, customer_name, email, whatsapp, status, plan, requested_plan)
+       VALUES ($1, $2, $3, $4, 'pending', 'none', $5)
        RETURNING *`,
-      [
-        key,
-        input.customerName ?? '',
-        input.email ?? '',
-        Math.max(1, input.maxActivations ?? 1),
-        input.expiryDate || null,
-        input.notes ?? '',
-      ],
+      [key, input.customerName ?? '', input.email ?? '', input.whatsapp ?? '', input.requestedPlan ?? 'none'],
     );
     if (row) return row;
   }
@@ -146,7 +172,10 @@ export async function updateLicense(
   fields: Partial<{
     customer_name: string;
     email: string;
-    max_activations: number;
+    whatsapp: string;
+    plan: Plan;
+    requested_plan: Plan;
+    activation_date: string | null;
     expiry_date: string | null;
     notes: string;
     status: LicenseStatus;
@@ -171,22 +200,57 @@ export function setStatus(id: string, status: LicenseStatus): Promise<License | 
   return updateLicense(id, { status });
 }
 
+function computeExpiry(plan: Plan, activation: Date): string | null {
+  const days = PLAN_DAYS[plan];
+  if (days == null) return null; // lifetime / none = no expiry
+  const e = new Date(activation);
+  e.setUTCDate(e.getUTCDate() + days);
+  return e.toISOString();
+}
+
+/**
+ * Activate a license on a chosen plan. Sets the activation date (now, unless one
+ * already exists and `keepActivationDate`), the plan, and the expiry derived from
+ * the plan (lifetime = never expires). Status becomes 'active'.
+ */
+export async function activateWithPlan(
+  id: string,
+  plan: Plan,
+  opts: { keepActivationDate?: boolean } = {},
+): Promise<License | null> {
+  const lic = await getLicense(id);
+  if (!lic) return null;
+  const activation = opts.keepActivationDate && lic.activation_date ? new Date(lic.activation_date) : new Date();
+  const expiry = computeExpiry(plan, activation);
+  return updateLicense(id, {
+    plan,
+    status: 'active',
+    activation_date: activation.toISOString(),
+    expiry_date: expiry,
+  });
+}
+
+/** Change the plan on an already-active license; recomputes expiry from the activation date. */
+export function changePlan(id: string, plan: Plan): Promise<License | null> {
+  return activateWithPlan(id, plan, { keepActivationDate: true });
+}
+
 /** Extend (or set) the expiry date by N days from the later of now / current expiry. */
 export async function extendLicense(id: string, days: number): Promise<License | null> {
   const lic = await getLicense(id);
   if (!lic) return null;
+  if (lic.plan === 'lifetime') return lic; // nothing to extend
   const base = lic.expiry_date && new Date(lic.expiry_date) > new Date()
     ? new Date(lic.expiry_date)
     : new Date();
   base.setUTCDate(base.getUTCDate() + days);
-  // Re-activate if it had lapsed into 'expired' and now has a future date.
   const status: LicenseStatus = lic.status === 'expired' ? 'active' : lic.status;
   return updateLicense(id, { expiry_date: base.toISOString(), status });
 }
 
+/** Reset the registered device(s) — used for lifetime device transfers. */
 export async function resetMachines(id: string): Promise<number> {
   const res = await query(`DELETE FROM machines WHERE license_id = $1`, [id]);
-  await query(`UPDATE licenses SET activation_date = NULL WHERE id = $1`, [id]);
   return res.rowCount;
 }
 
@@ -214,6 +278,12 @@ async function logVerification(
 
 const RECHECK_SECONDS = 300; // desktop re-verifies every 5 minutes
 
+function remainingDaysFor(plan: Plan, expiry: string | null): number | null {
+  if (plan === 'lifetime') return null;          // unlimited
+  if (!expiry) return null;
+  return Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / 86_400_000));
+}
+
 export async function verifyLicense(input: {
   productKey: string;
   machineId: string;
@@ -236,29 +306,39 @@ export async function verifyLicense(input: {
     return { valid: false, status: 'invalid', reason: 'Product key not found' };
   }
 
-  // Lazily flip to 'expired' when the date has passed.
+  const touch = () =>
+    query(`UPDATE licenses SET last_verification_time = now(), last_ip = $2 WHERE id = $1`, [lic.id, ip]);
+
+  // Awaiting admin activation / payment verification.
+  if (lic.status === 'pending') {
+    await touch();
+    const reason = 'This product key is awaiting activation. It will work once your payment is verified by the admin.';
+    await logVerification(lic.id, productKey, machineId, ip, false, reason);
+    return { valid: false, status: 'pending', reason, plan: lic.plan, expiryDate: null };
+  }
+
+  // Lazily flip to 'expired' when the date has passed (lifetime never expires).
   let status: LicenseStatus = lic.status;
-  if (status === 'active' && lic.expiry_date && new Date(lic.expiry_date) < new Date()) {
+  if (status === 'active' && lic.plan !== 'lifetime' && lic.expiry_date && new Date(lic.expiry_date) < new Date()) {
     status = 'expired';
     await query(`UPDATE licenses SET status = 'expired' WHERE id = $1 AND status = 'active'`, [lic.id]);
   }
 
-  const touch = () =>
-    query(`UPDATE licenses SET last_verification_time = now(), last_ip = $2 WHERE id = $1`, [lic.id, ip]);
-
   if (status !== 'active') {
     const reasons: Record<string, string> = {
-      disabled: 'License has been disabled. Please contact the administrator.',
-      expired: 'License has expired. Please renew your subscription.',
-      banned: 'License has been banned. Please contact the administrator.',
+      disabled: 'Your product key has been disabled. Please contact the administrator.',
+      expired: 'Your subscription has expired. Please renew to continue.',
+      banned: 'Your product key has been banned. Please contact the administrator.',
     };
     const reason = reasons[status] ?? 'License is not active.';
     await touch();
     await logVerification(lic.id, productKey, machineId, ip, false, reason);
-    return { valid: false, status, reason, expiryDate: lic.expiry_date };
+    return { valid: false, status, reason, plan: lic.plan, expiryDate: lic.expiry_date };
   }
 
-  // Machine binding / activation-limit enforcement.
+  // ── Device rules ───────────────────────────────────────────
+  // Lifetime: locked to ONE permanently-registered device.
+  // All other plans: no device cap.
   const machine = await queryOne<Machine>(
     `SELECT * FROM machines WHERE license_id = $1 AND machine_id = $2`,
     [lic.id, machineId],
@@ -266,39 +346,30 @@ export async function verifyLicense(input: {
 
   if (machine) {
     await query(
-      `UPDATE machines
-         SET last_seen = now(), ip_address = $2,
-             os = COALESCE(NULLIF($3, ''), os),
-             device_name = COALESCE(NULLIF($4, ''), device_name)
+      `UPDATE machines SET last_seen = now(), ip_address = $2,
+              os = COALESCE(NULLIF($3, ''), os),
+              device_name = COALESCE(NULLIF($4, ''), device_name)
        WHERE id = $1`,
       [machine.id, ip, input.os ?? '', input.deviceName ?? ''],
     );
   } else {
-    const countRow = await queryOne<{ count: string }>(
-      `SELECT COUNT(*)::int AS count FROM machines WHERE license_id = $1`,
-      [lic.id],
-    );
-    const count = Number(countRow?.count ?? 0);
-    if (count >= lic.max_activations) {
-      await touch();
-      // Hardware + product-key binding: this key is already locked to its
-      // allotted device(s). A new/changed hardware ID is rejected here — the
-      // user must ask an administrator to reset activations to move machines.
-      const reason =
-        lic.max_activations === 1
-          ? 'This product key is already locked to a different device (hardware ID mismatch). A hardware change requires an administrator activation reset.'
-          : `Activation limit reached. This product key is locked to ${lic.max_activations} device(s). Contact the administrator to reset activations.`;
-      await logVerification(lic.id, productKey, machineId, ip, false, reason);
-      return { valid: false, status: 'active', reason, expiryDate: lic.expiry_date };
+    if (lic.plan === 'lifetime') {
+      const countRow = await queryOne<{ count: string }>(
+        `SELECT COUNT(*)::int AS count FROM machines WHERE license_id = $1`,
+        [lic.id],
+      );
+      if (Number(countRow?.count ?? 0) >= 1) {
+        await touch();
+        const reason = 'This lifetime license is permanently registered to a different device. Contact the administrator to reset the registered device.';
+        await logVerification(lic.id, productKey, machineId, ip, false, reason);
+        return { valid: false, status: 'active', reason, plan: lic.plan, expiryDate: lic.expiry_date };
+      }
     }
     await query(
       `INSERT INTO machines (license_id, machine_id, os, device_name, ip_address)
        VALUES ($1, $2, $3, $4, $5)`,
       [lic.id, machineId, input.os ?? '', input.deviceName ?? '', ip],
     );
-    if (!lic.activation_date) {
-      await query(`UPDATE licenses SET activation_date = now() WHERE id = $1 AND activation_date IS NULL`, [lic.id]);
-    }
   }
 
   await touch();
@@ -307,7 +378,9 @@ export async function verifyLicense(input: {
     valid: true,
     status: 'active',
     reason: 'OK',
+    plan: lic.plan,
     expiryDate: lic.expiry_date,
+    remainingDays: remainingDaysFor(lic.plan, lic.expiry_date),
     customerName: lic.customer_name,
     recheckSeconds: RECHECK_SECONDS,
   };

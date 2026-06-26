@@ -107,6 +107,7 @@ code.key { font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-si
 /* ── Badges ──────────────────────────────────────────────── */
 .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; text-transform: capitalize; }
 .badge.active { background: rgba(34,197,94,.15); color: #86efac; }
+.badge.pending { background: rgba(139,92,246,.16); color: #c4b5fd; }
 .badge.disabled { background: rgba(156,163,175,.15); color: #cbd5e1; }
 .badge.expired { background: rgba(245,158,11,.15); color: #fcd34d; }
 .badge.banned { background: rgba(239,68,68,.15); color: #fca5a5; }

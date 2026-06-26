@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createLicense, listLicenses } from '@/lib/licenses';
+import { createLicense, isPlan, listLicenses } from '@/lib/licenses';
 import type { LicenseStatus } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const STATUSES: (LicenseStatus | 'all')[] = ['all', 'active', 'disabled', 'expired', 'banned'];
+const STATUSES: (LicenseStatus | 'all')[] = ['all', 'pending', 'active', 'disabled', 'expired', 'banned'];
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -27,9 +27,8 @@ export async function POST(req: Request) {
     const license = await createLicense({
       customerName: String(body.customerName ?? ''),
       email: String(body.email ?? ''),
-      maxActivations: body.maxActivations != null ? Number(body.maxActivations) : 1,
-      expiryDate: body.expiryDate ? String(body.expiryDate) : null,
-      notes: body.notes ? String(body.notes) : '',
+      whatsapp: body.whatsapp ? String(body.whatsapp) : '',
+      requestedPlan: isPlan(String(body.requestedPlan)) ? (String(body.requestedPlan) as never) : 'none',
       productKey: body.productKey ? String(body.productKey) : undefined,
     });
     return NextResponse.json(license, { status: 201 });

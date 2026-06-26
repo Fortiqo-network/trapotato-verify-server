@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import {
+  activateWithPlan,
+  changePlan,
   deleteLicense,
   extendLicense,
   getLicense,
   getLogs,
   getMachines,
+  isPlan,
   resetMachines,
   setStatus,
   updateLicense,
@@ -26,7 +29,8 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json({ license, machines, logs });
 }
 
-// PATCH /api/admin/licenses/:id — actions: disable | enable | ban | extend | reset-machines | update
+// PATCH /api/admin/licenses/:id
+// actions: activate | change-plan | disable | enable | ban | extend | reset-machines | update
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params;
   const body = await req.json().catch(() => ({}) as Record<string, unknown>);
@@ -36,6 +40,22 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   switch (action) {
+    case 'activate': {
+      // Activate on a chosen plan: sets activation date, expiry (per plan), status=active.
+      const plan = String(body.plan ?? '');
+      if (!isPlan(plan) || plan === 'none') {
+        return NextResponse.json({ error: 'Select a valid plan to activate.' }, { status: 400 });
+      }
+      return NextResponse.json(await activateWithPlan(id, plan));
+    }
+    case 'change-plan': {
+      // Change the plan, recomputing expiry from the existing activation date.
+      const plan = String(body.plan ?? '');
+      if (!isPlan(plan) || plan === 'none') {
+        return NextResponse.json({ error: 'Select a valid plan.' }, { status: 400 });
+      }
+      return NextResponse.json(await changePlan(id, plan));
+    }
     case 'disable':
       return NextResponse.json(await setStatus(id, 'disabled'));
     case 'enable':
@@ -58,10 +78,12 @@ export async function PATCH(req: Request, { params }: Params) {
       const fields: Record<string, unknown> = {};
       if (body.customerName !== undefined) fields.customer_name = String(body.customerName);
       if (body.email !== undefined) fields.email = String(body.email);
-      if (body.maxActivations !== undefined) fields.max_activations = Math.max(1, Number(body.maxActivations));
-      if (body.expiryDate !== undefined) fields.expiry_date = body.expiryDate ? String(body.expiryDate) : null;
+      if (body.whatsapp !== undefined) fields.whatsapp = String(body.whatsapp);
       if (body.notes !== undefined) fields.notes = String(body.notes);
+      if (body.expiryDate !== undefined) fields.expiry_date = body.expiryDate ? String(body.expiryDate) : null;
       if (body.status !== undefined) fields.status = String(body.status) as LicenseStatus;
+      if (body.plan !== undefined && isPlan(String(body.plan))) fields.plan = String(body.plan);
+      if (body.requestedPlan !== undefined && isPlan(String(body.requestedPlan))) fields.requested_plan = String(body.requestedPlan);
       return NextResponse.json(await updateLicense(id, fields));
     }
   }

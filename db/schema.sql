@@ -16,8 +16,13 @@ CREATE TABLE IF NOT EXISTS licenses (
     product_key             TEXT UNIQUE NOT NULL,
     customer_name           TEXT NOT NULL DEFAULT '',
     email                   TEXT NOT NULL DEFAULT '',
-    status                  TEXT NOT NULL DEFAULT 'active'
-                              CHECK (status IN ('active', 'disabled', 'expired', 'banned')),
+    whatsapp                TEXT NOT NULL DEFAULT '',
+    status                  TEXT NOT NULL DEFAULT 'pending'
+                              CHECK (status IN ('pending', 'active', 'disabled', 'expired', 'banned')),
+    plan                    TEXT NOT NULL DEFAULT 'none'
+                              CHECK (plan IN ('none', 'monthly', 'quarterly', 'annual', 'lifetime')),
+    requested_plan          TEXT NOT NULL DEFAULT 'none'
+                              CHECK (requested_plan IN ('none', 'monthly', 'quarterly', 'annual', 'lifetime')),
     max_activations         INTEGER NOT NULL DEFAULT 1 CHECK (max_activations >= 1),
     activation_date         TIMESTAMPTZ,
     expiry_date             TIMESTAMPTZ,
@@ -75,3 +80,21 @@ DROP TRIGGER IF EXISTS trg_licenses_updated_at ON licenses;
 CREATE TRIGGER trg_licenses_updated_at
     BEFORE UPDATE ON licenses
     FOR EACH ROW EXECUTE FUNCTION trapotato.set_updated_at();
+
+-- ── Migration for existing databases (subscription support) ───
+-- Adds the new columns and widens the status/plan constraints. Idempotent.
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS whatsapp       TEXT NOT NULL DEFAULT '';
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS plan           TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS requested_plan TEXT NOT NULL DEFAULT 'none';
+
+ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_status_check;
+ALTER TABLE licenses ADD  CONSTRAINT licenses_status_check
+    CHECK (status IN ('pending', 'active', 'disabled', 'expired', 'banned'));
+
+ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_plan_check;
+ALTER TABLE licenses ADD  CONSTRAINT licenses_plan_check
+    CHECK (plan IN ('none', 'monthly', 'quarterly', 'annual', 'lifetime'));
+
+ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_requested_plan_check;
+ALTER TABLE licenses ADD  CONSTRAINT licenses_requested_plan_check
+    CHECK (requested_plan IN ('none', 'monthly', 'quarterly', 'annual', 'lifetime'));

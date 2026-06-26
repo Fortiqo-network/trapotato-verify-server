@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getStats, listLicenses } from '@/lib/licenses';
+import { planLabel } from '@/lib/plans';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,7 @@ export default async function OverviewPage() {
 
       <div className="grid stats" style={{ marginTop: 18 }}>
         <div className="stat"><div className="label">Total Licenses</div><div className="value">{stats.total}</div></div>
+        <div className="stat"><div className="label">Pending</div><div className="value" style={{ color: '#c4b5fd' }}>{stats.pending}</div></div>
         <div className="stat"><div className="label">Active</div><div className="value green">{stats.active}</div></div>
         <div className="stat"><div className="label">Disabled</div><div className="value">{stats.disabled}</div></div>
         <div className="stat"><div className="label">Expired</div><div className="value amber">{stats.expired}</div></div>
@@ -33,21 +35,21 @@ export default async function OverviewPage() {
         <table>
           <thead>
             <tr>
-              <th>Product Key</th><th>Customer</th><th>Status</th><th>Machines</th><th>Expiry</th><th>Created</th>
+              <th>Product Key</th><th>Customer</th><th>Status</th><th>Plan</th><th>Devices</th><th>Expiry</th>
             </tr>
           </thead>
           <tbody>
             {recent.items.length === 0 && (
-              <tr><td colSpan={6} className="muted">No licenses yet. Create one from the Licenses page.</td></tr>
+              <tr><td colSpan={6} className="muted">No licenses yet.</td></tr>
             )}
             {recent.items.map((l) => (
               <tr key={l.id}>
                 <td><Link href={`/admin/licenses/${l.id}`}><code className="key">{l.product_key}</code></Link></td>
                 <td>{l.customer_name || <span className="muted">—</span>}</td>
                 <td><span className={`badge ${l.status}`}>{l.status}</span></td>
-                <td>{l.machine_count} / {l.max_activations}</td>
-                <td>{fmt(l.expiry_date)}</td>
-                <td>{fmt(l.created_at)}</td>
+                <td>{l.status === 'active' ? planLabel(l.plan) : <span className="muted">{l.requested_plan !== 'none' ? `wants ${planLabel(l.requested_plan)}` : '—'}</span>}</td>
+                <td>{l.machine_count}</td>
+                <td>{l.plan === 'lifetime' ? 'Never' : fmt(l.expiry_date)}</td>
               </tr>
             ))}
           </tbody>

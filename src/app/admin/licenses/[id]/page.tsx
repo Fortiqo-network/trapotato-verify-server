@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLicense, getLogs, getMachines } from '@/lib/licenses';
 import { config } from '@/lib/config';
+import { planLabel } from '@/lib/plans';
 import DetailActions from './DetailActions';
 
 export const dynamic = 'force-dynamic';
@@ -29,17 +30,25 @@ export default async function LicenseDetailPage({ params }: { params: Promise<{ 
         <span className={`badge ${license.status}`}>{license.status}</span>
       </div>
 
-      <DetailActions id={license.id} status={license.status} productKey={license.product_key} />
+      <DetailActions
+        id={license.id}
+        status={license.status}
+        plan={license.plan}
+        isLifetime={license.plan === 'lifetime'}
+        productKey={license.product_key}
+      />
 
       {/* License info */}
       <div className="panel" style={{ marginTop: 16 }}>
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
           <Info label="Customer" value={license.customer_name || '—'} />
           <Info label="Email" value={license.email || '—'} />
-          <Info label="Max Activations" value={`${license.max_activations} device(s)`} />
-          <Info label="Machines Active" value={`${machines.length}`} />
+          <Info label="WhatsApp" value={license.whatsapp || '—'} />
+          <Info label="Active Plan" value={planLabel(license.plan)} />
+          <Info label="Requested Plan" value={planLabel(license.requested_plan)} />
+          <Info label="Registered Devices" value={license.plan === 'lifetime' ? `${machines.length} / 1 (lifetime lock)` : `${machines.length}`} />
           <Info label="Activation Date" value={fmt(license.activation_date)} />
-          <Info label="Expiry Date" value={fmt(license.expiry_date)} />
+          <Info label="Expiry Date" value={license.plan === 'lifetime' ? 'Never (lifetime)' : fmt(license.expiry_date)} />
           <Info label="Last Verification" value={fmt(license.last_verification_time)} />
           <Info label="Last IP" value={license.last_ip || '—'} />
           <Info label="Created" value={fmt(license.created_at)} />

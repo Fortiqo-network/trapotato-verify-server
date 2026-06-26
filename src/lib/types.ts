@@ -1,13 +1,20 @@
 // Shared domain types for the licensing system.
 
-export type LicenseStatus = 'active' | 'disabled' | 'expired' | 'banned';
+export type LicenseStatus = 'pending' | 'active' | 'disabled' | 'expired' | 'banned';
+export type Plan = 'none' | 'monthly' | 'quarterly' | 'annual' | 'lifetime';
 
 export interface License {
   id: string;
   product_key: string;
   customer_name: string;
   email: string;
+  whatsapp: string;
   status: LicenseStatus;
+  /** The currently active plan (set on activation). */
+  plan: Plan;
+  /** The plan the user said they want to buy (captured at registration). */
+  requested_plan: Plan;
+  /** Legacy column, retained for back-compat. Device limits are now plan-driven. */
   max_activations: number;
   activation_date: string | null;
   expiry_date: string | null;
@@ -42,6 +49,7 @@ export interface VerificationLog {
 
 export interface Stats {
   total: number;
+  pending: number;
   active: number;
   disabled: number;
   expired: number;
@@ -54,8 +62,10 @@ export interface VerifyResult {
   valid: boolean;
   status: LicenseStatus | 'invalid';
   reason: string;
+  plan?: Plan;
   expiryDate?: string | null;
+  /** Days left for time-based plans; null = unlimited (lifetime); undefined = n/a. */
+  remainingDays?: number | null;
   customerName?: string;
-  /** Seconds the client should wait before the next verification (informational). */
   recheckSeconds?: number;
 }
