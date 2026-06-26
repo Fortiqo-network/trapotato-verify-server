@@ -24,11 +24,15 @@ export function isPlan(v: unknown): v is Plan {
 export async function listLicenses(opts: {
   search?: string;
   status?: LicenseStatus | 'all';
+  onlyDeleted?: boolean;
   limit?: number;
   offset?: number;
 } = {}): Promise<{ items: (License & { machine_count: number })[]; total: number }> {
   const where: string[] = [];
   const params: unknown[] = [];
+
+  // Soft-delete: by default hide deleted rows; the deleted view requests only them.
+  where.push(opts.onlyDeleted ? 'l.deleted_at IS NOT NULL' : 'l.deleted_at IS NULL');
 
   if (opts.search) {
     params.push(`%${opts.search}%`);
@@ -87,15 +91,16 @@ export function getLogs(licenseId: string, limit = 100): Promise<VerificationLog
 
 export async function getStats(): Promise<Stats> {
   const row = await queryOne<{
-    total: string; pending: string; active: string; disabled: string; expired: string; banned: string;
+    total: string; pending: string; active: string; disabled: string; expired: string; banned: string; deleted: string;
   }>(
     `SELECT
-       COUNT(*)::int AS total,
-       COUNT(*) FILTER (WHERE status = 'pending')::int  AS pending,
-       COUNT(*) FILTER (WHERE status = 'active')::int   AS active,
-       COUNT(*) FILTER (WHERE status = 'disabled')::int AS disabled,
-       COUNT(*) FILTER (WHERE status = 'expired')::int  AS expired,
-       COUNT(*) FILTER (WHERE status = 'banned')::int   AS banned
+       COUNT(*) FILTER (WHERE deleted_at IS NULL)::int AS total,
+       COUNT(*) FILTER (WHERE status = 'pending'  AND deleted_at IS NULL)::int AS pending,
+       COUNT(*) FILTER (WHERE status = 'active'   AND deleted_at IS NULL)::int AS active,
+       COUNT(*) FILTER (WHERE status = 'disabled' AND deleted_at IS NULL)::int AS disabled,
+       COUNT(*) FILTER (WHERE status = 'expired'  AND deleted_at IS NULL)::int AS expired,
+       COUNT(*) FILTER (WHERE status = 'banned'   AND deleted_at IS NULL)::int AS banned,
+       COUNT(*) FILTER (WHERE deleted_at IS NOT NULL)::int AS deleted
      FROM licenses`,
   );
   const online = await queryOne<{ count: string }>(
@@ -110,6 +115,7 @@ export async function getStats(): Promise<Stats> {
     disabled: Number(row?.disabled ?? 0),
     expired: Number(row?.expired ?? 0),
     banned: Number(row?.banned ?? 0),
+    deleted: Number(row?.deleted ?? 0),
     onlineClients: Number(online?.count ?? 0),
   };
 }
@@ -254,9 +260,15 @@ export async function resetMachines(id: string): Promise<number> {
   return res.rowCount;
 }
 
+/** Soft-delete: hide the user from normal views without losing any data. */
 export async function deleteLicense(id: string): Promise<boolean> {
-  const res = await query(`DELETE FROM licenses WHERE id = $1`, [id]);
+  const res = await query(`UPDATE licenses SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [id]);
   return res.rowCount > 0;
+}
+
+/** Restore a soft-deleted user. */
+export async function restoreLicense(id: string): Promise<License | null> {
+  return queryOne<License>(`UPDATE licenses SET deleted_at = NULL WHERE id = $1 RETURNING *`, [id]);
 }
 
 // ── Verification (public, called by the desktop app) ──────────
@@ -301,8 +313,8 @@ export async function verifyLicense(input: {
   }
 
   const lic = await getLicenseByKey(productKey);
-  if (!lic) {
-    await logVerification(null, productKey, machineId, ip, false, 'Product key not found');
+  if (!lic || lic.deleted_at) {
+    await logVerification(lic?.id ?? null, productKey, machineId, ip, false, 'Product key not found');
     return { valid: false, status: 'invalid', reason: 'Product key not found' };
   }
 

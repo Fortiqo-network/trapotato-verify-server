@@ -16,8 +16,9 @@ export async function GET(req: Request) {
     : 'all';
   const limit = Number(url.searchParams.get('limit') ?? '100');
   const offset = Number(url.searchParams.get('offset') ?? '0');
+  const onlyDeleted = url.searchParams.get('deleted') === '1';
 
-  const result = await listLicenses({ search, status, limit, offset });
+  const result = await listLicenses({ search, status, onlyDeleted, limit, offset });
   return NextResponse.json(result);
 }
 

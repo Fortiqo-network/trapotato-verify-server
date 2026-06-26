@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS licenses (
     last_verification_time  TIMESTAMPTZ,
     last_ip                 TEXT,
     notes                   TEXT NOT NULL DEFAULT '',
+    deleted_at              TIMESTAMPTZ,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -86,6 +87,8 @@ CREATE TRIGGER trg_licenses_updated_at
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS whatsapp       TEXT NOT NULL DEFAULT '';
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS plan           TEXT NOT NULL DEFAULT 'none';
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS requested_plan TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS deleted_at     TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_licenses_deleted ON licenses (deleted_at);
 
 ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_status_check;
 ALTER TABLE licenses ADD  CONSTRAINT licenses_status_check

@@ -11,7 +11,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </Link>
         <div className="links">
           <Link href="/admin">Overview</Link>
-          <Link href="/admin/licenses">Licenses</Link>
+          <Link href="/admin/licenses">Users &amp; Licenses</Link>
+          <Link href="/admin/deleted">Deleted</Link>
         </div>
         <div className="spacer" />
         <LogoutButton />

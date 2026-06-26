@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { License, LicenseStatus } from '@/lib/types';
 import { PLAN_LIST, planLabel } from '@/lib/plans';
+import { ConfirmModal } from '../Modals';
+
+type ConfirmState = { title: string; message: string; confirmLabel: string; danger?: boolean; run: () => Promise<void> };
 
 type Row = License & { machine_count: number };
 
@@ -21,6 +24,7 @@ export default function LicensesClient() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [planModal, setPlanModal] = useState<{ row: Row; mode: 'activate' | 'change' } | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -42,8 +46,7 @@ export default function LicensesClient() {
     return () => clearTimeout(t);
   }, [load]);
 
-  async function action(id: string, body: Record<string, unknown>, confirmMsg?: string) {
-    if (confirmMsg && !confirm(confirmMsg)) return;
+  async function action(id: string, body: Record<string, unknown>) {
     setBusyId(id);
     await fetch(`/api/admin/licenses/${id}`, {
       method: 'PATCH',
@@ -54,12 +57,29 @@ export default function LicensesClient() {
     load();
   }
 
-  async function remove(id: string, key: string) {
-    if (!confirm(`Permanently DELETE license ${key}? This removes all its machines and logs.`)) return;
-    setBusyId(id);
-    await fetch(`/api/admin/licenses/${id}`, { method: 'DELETE' });
-    setBusyId(null);
-    load();
+  function askReset(l: Row) {
+    setConfirmState({
+      title: l.plan === 'lifetime' ? 'Reset registered device' : 'Reset registered devices',
+      message: `Reset the registered device for ${l.product_key}? They can then activate on a new machine.`,
+      confirmLabel: 'Reset',
+      run: async () => { await action(l.id, { action: 'reset-machines' }); setConfirmState(null); },
+    });
+  }
+
+  function askDelete(l: Row) {
+    setConfirmState({
+      title: 'Delete user',
+      message: `Move ${l.product_key} to Deleted? Nothing is permanently removed — you can view and restore this user later from the Deleted view.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      run: async () => {
+        setBusyId(l.id);
+        await fetch(`/api/admin/licenses/${l.id}`, { method: 'DELETE' });
+        setBusyId(null);
+        setConfirmState(null);
+        load();
+      },
+    });
   }
 
   return (
@@ -110,8 +130,8 @@ export default function LicensesClient() {
                       : (l.status === 'disabled' || l.status === 'banned')
                         ? <button className="btn sm" onClick={() => action(l.id, { action: 'enable' })}>Enable</button>
                         : null}
-                    {l.plan === 'lifetime' && <button className="btn sm" onClick={() => action(l.id, { action: 'reset-machines' }, `Reset the registered device for ${l.product_key}? They can then activate on a new machine.`)}>Reset device</button>}
-                    <button className="btn sm danger" onClick={() => remove(l.id, l.product_key)}>Delete</button>
+                    {l.plan === 'lifetime' && <button className="btn sm" onClick={() => askReset(l)}>Reset device</button>}
+                    <button className="btn sm danger" onClick={() => askDelete(l)}>Delete</button>
                   </div>
                 </td>
               </tr>
@@ -120,6 +140,16 @@ export default function LicensesClient() {
         </table>
       </div>
 
+      {confirmState && (
+        <ConfirmModal
+          title={confirmState.title}
+          message={confirmState.message}
+          confirmLabel={confirmState.confirmLabel}
+          danger={confirmState.danger}
+          onConfirm={confirmState.run}
+          onClose={() => setConfirmState(null)}
+        />
+      )}
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />}
       {planModal && (
         <PlanModal

@@ -24,6 +24,7 @@ export default async function OverviewPage() {
         <div className="stat"><div className="label">Expired</div><div className="value amber">{stats.expired}</div></div>
         <div className="stat"><div className="label">Banned</div><div className="value red">{stats.banned}</div></div>
         <div className="stat"><div className="label">Online Clients</div><div className="value blue">{stats.onlineClients}</div></div>
+        <div className="stat"><div className="label">Deleted</div><div className="value muted">{stats.deleted}</div></div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '28px 0 12px' }}>

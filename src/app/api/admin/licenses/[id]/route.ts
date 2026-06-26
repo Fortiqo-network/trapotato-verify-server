@@ -9,6 +9,7 @@ import {
   getMachines,
   isPlan,
   resetMachines,
+  restoreLicense,
   setStatus,
   updateLicense,
 } from '@/lib/licenses';
@@ -73,6 +74,8 @@ export async function PATCH(req: Request, { params }: Params) {
       const removed = await resetMachines(id);
       return NextResponse.json({ ok: true, removed });
     }
+    case 'restore':
+      return NextResponse.json(await restoreLicense(id));
     case 'update':
     default: {
       const fields: Record<string, unknown> = {};

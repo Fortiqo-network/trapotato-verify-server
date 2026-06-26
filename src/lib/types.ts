@@ -21,6 +21,7 @@ export interface License {
   last_verification_time: string | null;
   last_ip: string | null;
   notes: string;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +55,7 @@ export interface Stats {
   disabled: number;
   expired: number;
   banned: number;
+  deleted: number;
   onlineClients: number;
 }
 
