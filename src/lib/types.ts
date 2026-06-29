@@ -73,3 +73,43 @@ export interface VerifyResult {
   /** Set when this device was signed out (e.g. used elsewhere or admin reset) and must re-enter the key. */
   requiresReactivation?: boolean;
 }
+
+// ── Early-access waitlist ─────────────────────────────────────
+
+export type EarlyAccessStatus = 'new' | 'contacted' | 'approved' | 'rejected';
+
+export interface EarlyAccess {
+  id: string;
+  full_name: string;
+  email: string;
+  whatsapp: string;
+  company: string;
+  role: string;
+  use_case: string;
+  duration: string;
+  referral: string;
+  /** Mandatory Terms & License acceptance. */
+  accepted_terms: boolean;
+  terms_version: string;
+  accepted_at: string | null;
+  /** Device / request context captured at submission. */
+  user_agent: string;
+  platform: string;
+  timezone: string;
+  language: string;
+  screen: string;
+  ip_address: string;
+  device_details: Record<string, unknown>;
+  status: EarlyAccessStatus;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EarlyAccessStats {
+  total: number;
+  new: number;
+  contacted: number;
+  approved: number;
+  rejected: number;
+}

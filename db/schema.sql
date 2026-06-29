@@ -101,3 +101,45 @@ ALTER TABLE licenses ADD  CONSTRAINT licenses_plan_check
 ALTER TABLE licenses DROP CONSTRAINT IF EXISTS licenses_requested_plan_check;
 ALTER TABLE licenses ADD  CONSTRAINT licenses_requested_plan_check
     CHECK (requested_plan IN ('none', 'monthly', 'quarterly', 'annual', 'lifetime'));
+
+-- ── Early-access applications (public waitlist) ───────────────
+-- Captures the request form plus the mandatory Terms & License acceptance
+-- (with timestamp) and the device/context details collected at submission.
+CREATE TABLE IF NOT EXISTS early_access (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name       TEXT NOT NULL DEFAULT '',
+    email           TEXT NOT NULL DEFAULT '',
+    whatsapp        TEXT NOT NULL DEFAULT '',
+    company         TEXT NOT NULL DEFAULT '',
+    role            TEXT NOT NULL DEFAULT '',
+    use_case        TEXT NOT NULL DEFAULT '',
+    duration        TEXT NOT NULL DEFAULT '',
+    referral        TEXT NOT NULL DEFAULT '',
+    -- Terms & License acceptance (mandatory; recorded with a timestamp).
+    accepted_terms  BOOLEAN NOT NULL DEFAULT false,
+    terms_version   TEXT NOT NULL DEFAULT '',
+    accepted_at     TIMESTAMPTZ,
+    -- Device / request context captured at submission time.
+    user_agent      TEXT NOT NULL DEFAULT '',
+    platform        TEXT NOT NULL DEFAULT '',
+    timezone        TEXT NOT NULL DEFAULT '',
+    language        TEXT NOT NULL DEFAULT '',
+    screen          TEXT NOT NULL DEFAULT '',
+    ip_address      TEXT NOT NULL DEFAULT '',
+    device_details  JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- Admin workflow.
+    status          TEXT NOT NULL DEFAULT 'new'
+                      CHECK (status IN ('new', 'contacted', 'approved', 'rejected')),
+    notes           TEXT NOT NULL DEFAULT '',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_early_access_status  ON early_access (status);
+CREATE INDEX IF NOT EXISTS idx_early_access_email   ON early_access (email);
+CREATE INDEX IF NOT EXISTS idx_early_access_created ON early_access (created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_early_access_updated_at ON early_access;
+CREATE TRIGGER trg_early_access_updated_at
+    BEFORE UPDATE ON early_access
+    FOR EACH ROW EXECUTE FUNCTION trapotato.set_updated_at();
