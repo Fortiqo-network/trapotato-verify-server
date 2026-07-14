@@ -1,12 +1,19 @@
 // PM2 process configuration for the Trapotato Verify Server.
-// Build first (`npm run build`), then: `pm2 start ecosystem.config.js`.
+//
+// The Next.js build uses `output: 'standalone'` (see next.config.mjs), so the
+// server MUST be launched via the generated standalone entrypoint — NOT via
+// `next start` (which prints a warning and does not serve the standalone bundle).
+//
+// Deploy:  npm run build  &&  pm2 start ecosystem.config.js  &&  pm2 save
+//
+// Port 6542 is required: the Cloudflare tunnel (trapotato.fortiqo.xyz) proxies
+// to http://localhost:6542. Port 3000 is used by another app on this host.
 
 module.exports = {
   apps: [
     {
       name: 'trapotato-verify',
-      script: './node_modules/next/dist/bin/next',
-      args: 'start -p 3000',
+      script: '.next/standalone/server.js',
       cwd: __dirname,
       instances: 1,
       exec_mode: 'fork',
@@ -14,7 +21,8 @@ module.exports = {
       max_memory_restart: '512M',
       env: {
         NODE_ENV: 'production',
-        PORT: '3000',
+        PORT: '6542',
+        HOSTNAME: '0.0.0.0',
       },
       out_file: './logs/out.log',
       error_file: './logs/error.log',
