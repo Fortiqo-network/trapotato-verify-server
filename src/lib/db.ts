@@ -25,7 +25,10 @@ export function getPool(): Pool {
       // Pin every connection to our dedicated schema.
       options: `-c search_path=${config.dbSchema}`,
       ssl: config.dbSsl ? { rejectUnauthorized: false } : undefined,
-      max: 10,
+      // Serverless (Vercel) spins up many isolated instances, each with its own
+      // pool — a high per-instance max quickly exhausts Postgres. Keep it small
+      // (override with DB_POOL_MAX) and prefer a pooled/pgbouncer DATABASE_URL.
+      max: Number(process.env.DB_POOL_MAX ?? (process.env.VERCEL ? '2' : '10')),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
     });

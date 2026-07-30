@@ -18,10 +18,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const standalone = join(root, '.next', 'standalone');
 
 if (!existsSync(standalone)) {
-  console.error(
-    '[prepare-standalone] .next/standalone not found — is `output: "standalone"` set in next.config.mjs and did `next build` run?',
-  );
-  process.exit(1);
+  // No standalone output — this is a Vercel / native `next build` (output is not
+  // 'standalone' there), which serves static assets itself. Nothing to copy;
+  // skip cleanly so the postbuild step never fails a non-standalone build.
+  console.log('[prepare-standalone] no .next/standalone (native/Vercel build) — nothing to copy.');
+  process.exit(0);
 }
 
 /** Recursively copy `src` → `dest` when `src` exists, logging the result. */
